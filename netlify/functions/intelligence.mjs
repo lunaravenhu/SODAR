@@ -1,33 +1,29 @@
-import { json, getBinancePairs, getCoinGeckoMarket, demoPairs, intelligenceFromPairs, fetchJson } from './_utils.mjs';
+import { json, getSoDEXPairs, getBinancePairs, getCoinGeckoMarket, getSoSoValueTape, getCoinGeckoTape, getBinanceOrderbook, intelligenceFromLive } from './_utils.mjs';
 
 export async function handler() {
-  const attempts = [];
-  try {
-    const key = process.env.SOSOVALUE_API_KEY;
-    const base = process.env.SOSOVALUE_BASE_URL || 'https://api.sosovalue.com';
-    if (key) {
-      attempts.push('SoSoValue');
-      // Flexible probe: users can set SOSOVALUE_INTEL_PATH in Netlify when their plan exposes another path.
-      const path = process.env.SOSOVALUE_INTEL_PATH || '/openapi/v1/news';
-      const news = await fetchJson(`${base}${path}`, { headers: { 'x-api-key': key, authorization: `Bearer ${key}` } }, 6500);
-      const pairs = await getBinancePairs().catch(() => demoPairs);
-      const data = intelligenceFromPairs(pairs, 'SoSoValue + Market Fallback');
-      if (Array.isArray(news?.data)) {
-        data.tape = news.data.slice(0, 5).map((n, i) => ({ age: `${i + 2}m ago`, tag: n.category || n.tag || 'SOSO', title: n.title || 'SoSoValue update', body: n.summary || n.description || 'Live research item from SoSoValue.', icon: ['◈','⌂','⌁','₿','◆'][i] }));
-      }
-      return json(data);
-    }
-  } catch (e) { attempts.push(`SoSoValue failed: ${e.message}`); }
-
-  try {
-    attempts.push('Binance');
-    return json({ ...intelligenceFromPairs(await getBinancePairs(), 'Binance Public API'), attempts });
-  } catch (e) { attempts.push(`Binance failed: ${e.message}`); }
-
-  try {
-    attempts.push('CoinGecko');
-    return json({ ...intelligenceFromPairs(await getCoinGeckoMarket(), 'CoinGecko Public API'), attempts });
-  } catch (e) { attempts.push(`CoinGecko failed: ${e.message}`); }
-
-  return json({ ...intelligenceFromPairs(demoPairs, 'Demo'), attempts });
+  const status = { sodex: 'Standby', soso: 'Standby', binance: 'Standby', coingecko: 'Standby' };
+  let pairs = [], pairSource = '';
+  let tape = [], tapeSource = '';
+  try { pairs = await getSoDEXPairs(); pairSource = 'SoDEX API'; status.sodex = 'Live'; }
+  catch(e){ status.sodex = `Error: ${e.message}`; }
+  if (!pairs.length) {
+    try { pairs = await getBinancePairs(); pairSource = 'Binance Public API'; status.binance = 'Live'; }
+    catch(e){ status.binance = `Error: ${e.message}`; }
+  }
+  if (!pairs.length) {
+    try { pairs = await getCoinGeckoMarket(); pairSource = 'CoinGecko Public API'; status.coingecko = 'Live'; }
+    catch(e){ status.coingecko = `Error: ${e.message}`; }
+  }
+  try { tape = await getSoSoValueTape(); tapeSource = 'SoSoValue API'; status.soso = 'Live'; }
+  catch(e){ status.soso = `Error: ${e.message}`; }
+  if (!tape.length) {
+    try { tape = await getCoinGeckoTape(); tapeSource = 'CoinGecko Public API'; status.coingecko = status.coingecko === 'Standby' ? 'Live' : status.coingecko; }
+    catch(e){ status.coingecko = status.coingecko === 'Standby' ? `Error: ${e.message}` : status.coingecko; }
+  }
+  if (!pairs.length) return json({ live:false, error:'All live market sources failed. Demo data is disabled.', routing:{...status, source:'No live source', live:false} }, 503);
+  const data = intelligenceFromLive(pairs, tape, pairSource + (tapeSource ? ` + ${tapeSource}` : ''));
+  try { data.orderbook = await getBinanceOrderbook('BTCUSDC'); }
+  catch(e){ data.orderbook = { source:'Unavailable', bids:[], asks:[], error:e.message }; }
+  data.routing = { ...data.routing, ...status, demo:'Disabled' };
+  return json(data);
 }

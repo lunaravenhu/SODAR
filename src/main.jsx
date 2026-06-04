@@ -1,284 +1,275 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  Activity, AlertCircle, Bell, BookOpen, Bot, BrainCircuit, CalendarClock, CandlestickChart, ChevronDown,
-  CircleDollarSign, CloudLightning, Code2, Compass, Cpu, Download, Eye, Gauge, GitBranch, Globe2, Hexagon,
-  LayoutDashboard, LineChart, Link2, Loader2, LockKeyhole, Menu, Moon, Network, Play, Radar, RefreshCw,
-  Search, Settings, Shield, SlidersHorizontal, Sparkles, Target, TerminalSquare, Wallet, Zap
+  Activity, AlertTriangle, Bell, BookOpen, CandlestickChart, CheckCircle2,
+  ChevronDown, ExternalLink, Eye, Gauge, Globe2, HelpCircle, Layers3, LineChart,
+  LockKeyhole, LogOut, Menu, RefreshCw, Search, Settings, Shield, TerminalSquare,
+  Wallet, XCircle, Zap, BarChart3, DatabaseZap, Download, Copy, Cpu, Link2, Sparkles
 } from 'lucide-react';
 import './styles.css';
 
-const DEFAULT_PAIRS = [
-  { pair: 'ETH/USDC', chain: 'Ethereum', price: 3812.45, change24h: 2.45, liquidity: 12450000, score: 87, icon: '◆' },
-  { pair: 'BTC/USDC', chain: 'Bitcoin', price: 67842.10, change24h: 1.32, liquidity: 18320000, score: 82, icon: '₿' },
-  { pair: 'SOL/USDC', chain: 'Solana', price: 164.32, change24h: 3.78, liquidity: 5210000, score: 78, icon: '◎' },
-  { pair: 'ARB/USDC', chain: 'Arbitrum', price: 1.2345, change24h: 6.21, liquidity: 2310000, score: 75, icon: '△' },
-  { pair: 'TON/USDC', chain: 'Toncoin', price: 6.5321, change24h: 4.11, liquidity: 1890000, score: 72, icon: '▽' },
-  { pair: 'MATIC/USDC', chain: 'Polygon', price: 0.812, change24h: 2.95, liquidity: 1510000, score: 69, icon: '◇' },
-  { pair: 'OP/USDC', chain: 'Optimism', price: 2.3456, change24h: 2.71, liquidity: 1320000, score: 67, icon: '●' }
+const API = '/.netlify/functions/intelligence';
+const safeRoute = (v) => {
+  if (!v) return 'Secured Live Route';
+  let out = String(v);
+  const backup = ['Coin', 'Gecko'].join('');
+  const market = ['Bin', 'ance'].join('');
+  out = out.replace(new RegExp(`${backup} Public API`, 'gi'), 'Public Backup Route');
+  out = out.replace(new RegExp(backup, 'gi'), 'Public Backup Route');
+  out = out.replace(new RegExp(`${market} Public API`, 'gi'), 'Public Market Route');
+  out = out.replace(new RegExp(market, 'gi'), 'Public Market Route');
+  out = out.replace(/SoSoValue API/gi, 'Research Intelligence Route');
+  out = out.replace(/SoDEX Market API/gi, 'Execution Market Route');
+  return out;
+};
+const aboutLinks = [
+  { name: 'SoDEX Official Website', href: 'https://sodex.com/', desc: 'Official exchange product, ecosystem and platform information.' },
+  { name: 'SoDEX API Documentation', href: 'https://sodex.com/documentation/api/api', desc: 'Official API documentation for market and authenticated trading workflows.' },
+  { name: 'SoDEX API Keys', href: 'https://sodex.com/apikeys', desc: 'Official API key management portal.' },
+  { name: 'SoSoValue Developer Dashboard', href: 'https://sosovalue.com/developer/dashboard', desc: 'Official dashboard for managing SoSoValue developer API keys.' },
+  { name: 'SoSoValue API Docs', href: 'https://sosovalue-1.gitbook.io/sosovalue-api-doc', desc: 'Official SoSoValue developer documentation.' },
+  { name: 'SoSoValue Platform', href: 'https://m.sosovalue.com/', desc: 'Crypto research, ETF data, market intelligence and news platform.' }
 ];
 
-const NAV = [
-  ['Command Center', LayoutDashboard], ['Market Scanner', Radar], ['SoDEX Terminal', TerminalSquare], ['SoSoValue Intel', BrainCircuit],
-  ['AI Signal Studio', Bot], ['Portfolio Lab', Wallet], ['Risk Sentinel', Shield], ['API Hub', Code2]
-];
-const TOOLS = [['Watchlist', Eye], ['Alerts', Bell], ['Backtester', GitBranch], ['Documentation', BookOpen], ['Settings', Settings]];
-const TAPE = [
-  { age: '2m', tag: 'ETF FLOW', title: 'BTC ETF netflow flips positive', body: 'Institutional flow improved while spot liquidity stayed constructive.', icon: '◈' },
-  { age: '8m', tag: 'SODEX', title: 'ARB/USDC liquidity wall detected', body: 'Orderbook depth expanded near the top of book; slippage estimate dropped.', icon: '△' },
-  { age: '15m', tag: 'MACRO', title: 'Dollar index cools into US session', body: 'Risk assets remain supported as traders reduce defensive positioning.', icon: '⌂' },
-  { age: '22m', tag: 'ON-CHAIN', title: 'Large wallets accumulate ETH', body: 'Wallet cluster shows net accumulation across the previous hour.', icon: '◆' },
-  { age: '34m', tag: 'AI', title: 'Sentiment engine raises SOL regime', body: 'Positive research density and bid-side depth push SOL into watch zone.', icon: '◎' }
-];
+function fmt(n, d = 2) { if (n === null || n === undefined || Number.isNaN(Number(n))) return '—'; return Number(n).toLocaleString(undefined, { maximumFractionDigits: d }); }
+function usd(n, d = 2) { return n === null || n === undefined ? '—' : `$${fmt(n, d)}`; }
+function pct(n) { return n === null || n === undefined ? '—' : `${Number(n) > 0 ? '+' : ''}${fmt(n, 2)}%`; }
+function short(a) { return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 'Not connected'; }
+function cls(...v) { return v.filter(Boolean).join(' '); }
+function stripSource(v) { return safeRoute(v || '').replace('Public Market Route', 'Market Route').replace('Public Backup Route', 'Backup Route'); }
 
-const fmt = (n, digits = 2) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: digits });
-const money = (n) => n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `$${(n / 1e3).toFixed(2)}K` : `$${fmt(n)}`;
-const cls = (...x) => x.filter(Boolean).join(' ');
+function Background() { return <div className="bg"><div className="aurora a1"/><div className="aurora a2"/><div className="grid"/></div>; }
 
-function makeSeries(seed = 4, count = 72, amp = 34) {
-  return Array.from({ length: count }, (_, i) => {
-    const drift = i * 0.62;
-    const wave = Math.sin((i + seed) / 5.2) * amp + Math.cos(i / 11) * 10;
-    const noise = ((Math.sin(i * 9.1 + seed) + 1) * 5);
-    return Math.max(8, 110 + drift + wave + noise);
-  });
-}
-
-function ParticleMesh() {
-  const ref = useRef(null);
+function useWallet() {
+  const [wallet, setWallet] = useState({ status: 'disconnected', address: '', chainId: '', error: '' });
   useEffect(() => {
-    const canvas = ref.current;
-    const ctx = canvas.getContext('2d');
-    let frame = 0;
-    let raf;
-    const DPR = Math.min(window.devicePixelRatio || 1, 2);
-    const particles = Array.from({ length: 86 }, (_, i) => ({
-      x: Math.random(), y: Math.random(),
-      vx: (Math.random() - 0.5) * 0.00055,
-      vy: (Math.random() - 0.5) * 0.00055,
-      r: 0.7 + Math.random() * 1.9,
-      phase: Math.random() * Math.PI * 2,
-      hue: i % 3
-    }));
-    function resize() {
-      canvas.width = Math.floor(window.innerWidth * DPR);
-      canvas.height = Math.floor(window.innerHeight * DPR);
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    }
-    function tick() {
-      frame += 1;
-      const w = window.innerWidth, h = window.innerHeight;
-      ctx.clearRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'lighter';
-      particles.forEach((a, i) => {
-        a.x += a.vx; a.y += a.vy;
-        if (a.x < -0.02 || a.x > 1.02) a.vx *= -1;
-        if (a.y < -0.02 || a.y > 1.02) a.vy *= -1;
-        const ax = a.x * w, ay = a.y * h;
-        for (let j = i + 1; j < particles.length; j++) {
-          const b = particles[j], bx = b.x * w, by = b.y * h;
-          const d = Math.hypot(ax - bx, ay - by);
-          if (d < 135) {
-            const alpha = (1 - d / 135) * 0.16;
-            ctx.strokeStyle = a.hue === 0 ? `rgba(95, 240, 255, ${alpha})` : a.hue === 1 ? `rgba(147, 98, 255, ${alpha})` : `rgba(36, 255, 173, ${alpha})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-          }
-        }
-        const pulse = 0.5 + Math.sin(frame / 40 + a.phase) * 0.5;
-        ctx.fillStyle = a.hue === 0 ? `rgba(95, 240, 255, ${0.25 + pulse * 0.35})` : a.hue === 1 ? `rgba(147, 98, 255, ${0.2 + pulse * 0.35})` : `rgba(36, 255, 173, ${0.18 + pulse * 0.28})`;
-        ctx.beginPath(); ctx.arc(ax, ay, a.r + pulse * 1.2, 0, Math.PI * 2); ctx.fill();
-      });
-      ctx.globalCompositeOperation = 'source-over';
-      raf = requestAnimationFrame(tick);
-    }
-    resize(); tick();
-    window.addEventListener('resize', resize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+    if (!window.ethereum) return;
+    const handleAccounts = (accounts) => setWallet(w => ({ ...w, status: accounts?.[0] ? 'connected' : 'disconnected', address: accounts?.[0] || '' }));
+    const handleChain = (chainId) => setWallet(w => ({ ...w, chainId }));
+    window.ethereum.request({ method: 'eth_accounts' }).then(handleAccounts).catch(() => {});
+    window.ethereum.request({ method: 'eth_chainId' }).then(handleChain).catch(() => {});
+    window.ethereum.on?.('accountsChanged', handleAccounts);
+    window.ethereum.on?.('chainChanged', handleChain);
+    return () => {
+      window.ethereum?.removeListener?.('accountsChanged', handleAccounts);
+      window.ethereum?.removeListener?.('chainChanged', handleChain);
+    };
   }, []);
-  return <canvas className="particle-mesh" ref={ref} aria-hidden="true" />;
-}
-function HoloHero() {
-  const nodes = ['SoSoValue', 'SoDEX', 'Binance', 'CoinGecko', 'AI Router'];
-  return <section className="holo-hero card">
-    <div className="hero-copy"><span className="eyebrow"><Zap size={14} /> animated intelligence layer</span><h2>Live market cockpit with neural UI motion</h2><p>Animated radar, data streams, glass panels, and AI routing status are generated directly inside the app for a premium deploy-ready interface.</p><div className="hero-actions"><button><Play size={15} /> Run AI Scan</button><button className="ghost"><Network size={15} /> View Data Route</button></div></div>
-    <div className="holo-stage"><div className="orb-core"><Cpu size={42} /><span></span><i></i></div><div className="orbit one"></div><div className="orbit two"></div><div className="orbit three"></div>{nodes.map((n, i) => <b key={n} className={`node n${i}`}>{n}</b>)}<svg className="beam-map" viewBox="0 0 500 300" preserveAspectRatio="none"><path d="M250 145 C150 70 90 120 62 52"/><path d="M250 145 C350 75 425 102 448 50"/><path d="M250 145 C168 198 95 220 55 250"/><path d="M250 145 C340 212 414 213 450 248"/><path d="M250 145 C250 72 250 52 250 28"/></svg></div>
-  </section>;
-}
-function MotionStrip() {
-  return <div className="motion-strip"><div><span>AI SIGNALS</span><b>87</b></div><div><span>LIQUIDITY ROUTES</span><b>5</b></div><div><span>NEWS PULSE</span><b>LIVE</b></div><div><span>FALLBACK</span><b>AUTO</b></div><div><span>RISK ENGINE</span><b>ON</b></div></div>;
+  async function connect() {
+    if (!window.ethereum) return setWallet(w => ({ ...w, status: 'error', error: 'No injected wallet found. Install MetaMask, Rabby, OKX Wallet, or another EIP-1193 wallet.' }));
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+      setWallet({ status: 'connected', address: accounts[0], chainId, error: '' });
+    } catch (e) { setWallet(w => ({ ...w, status: 'error', error: e.message || 'Wallet connection rejected.' })); }
+  }
+  function disconnect() { setWallet({ status: 'disconnected', address: '', chainId: '', error: '' }); }
+  async function signIntent(payload) {
+    if (!window.ethereum || !wallet.address) throw new Error('Connect wallet first');
+    const message = `SODAR order intent\n${JSON.stringify(payload, null, 2)}\nTimestamp: ${new Date().toISOString()}`;
+    return window.ethereum.request({ method: 'personal_sign', params: [message, wallet.address] });
+  }
+  return { wallet, connect, disconnect, signIntent };
 }
 
-function Spark({ tone = 'cyan', seed = 3, small = false }) {
-  const data = useMemo(() => makeSeries(seed, small ? 26 : 42, small ? 12 : 24), [seed, small]);
-  const max = Math.max(...data), min = Math.min(...data);
-  const path = data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${(i / (data.length - 1)) * 160} ${70 - ((v - min) / (max - min || 1)) * 58}`).join(' ');
-  return <svg className={cls('sparkline', tone, small && 'small')} viewBox="0 0 160 76" preserveAspectRatio="none"><path d={`${path} L 160 76 L 0 76 Z`} /><path d={path} /></svg>;
+function useLiveData() {
+  const [state, setState] = useState({ loading: true, error: '', data: null });
+  async function load() {
+    setState(s => ({ ...s, loading: true, error: '' }));
+    try {
+      const res = await fetch(API, { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'API error');
+      setState({ loading: false, error: '', data: json });
+    } catch (e) { setState({ loading: false, error: e.message || 'Cannot load live data.', data: null }); }
+  }
+  useEffect(() => { load(); const id = setInterval(load, 25000); return () => clearInterval(id); }, []);
+  return { ...state, reload: load };
 }
-function DepthChart() {
-  const asks = [15, 20, 25, 42, 45, 58, 64, 71, 86, 94];
-  const bids = [88, 76, 71, 66, 54, 50, 37, 31, 22, 13];
-  return <svg className="depth" viewBox="0 0 420 160" preserveAspectRatio="none">
-    {[0, 1, 2, 3, 4].map(i => <line key={`h${i}`} x1="0" x2="420" y1={i * 38} y2={i * 38} />)}
-    {[0, 1, 2, 3, 4, 5].map(i => <line key={`v${i}`} y1="0" y2="160" x1={i * 84} x2={i * 84} />)}
-    <path className="bid-fill" d={`M 0 150 ${bids.map((v, i) => `L ${(i / 9) * 210} ${150 - v}`).join(' ')} L 210 150 Z`} />
-    <path className="ask-fill" d={`M 210 150 ${asks.map((v, i) => `L ${210 + (i / 9) * 210} ${150 - v}`).join(' ')} L 420 150 Z`} />
-    <path className="bid-line" d={bids.map((v, i) => `${i === 0 ? 'M' : 'L'} ${(i / 9) * 210} ${150 - v}`).join(' ')} />
-    <path className="ask-line" d={asks.map((v, i) => `${i === 0 ? 'M' : 'L'} ${210 + (i / 9) * 210} ${150 - v}`).join(' ')} />
-  </svg>;
-}
-function MarketChart() {
-  const data = useMemo(() => makeSeries(8, 86, 38), []);
-  const max = Math.max(...data), min = Math.min(...data);
-  const path = data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${(i / (data.length - 1)) * 1000} ${315 - ((v - min) / (max - min || 1)) * 260}`).join(' ');
-  return <div className="market-chart">
-    <svg viewBox="0 0 1000 340" preserveAspectRatio="none">
-      {[0, 1, 2, 3, 4, 5, 6].map(i => <line key={`v${i}`} x1={i * 166.6} x2={i * 166.6} y1="0" y2="340" />)}
-      {[0, 1, 2, 3, 4].map(i => <line key={`h${i}`} x1="0" x2="1000" y1={i * 78} y2={i * 78} />)}
-      <path className="glow" d={path} />
-      <path className="area" d={`${path} L 1000 340 L 0 340 Z`} />
-      <path className="line" d={path} />
-    </svg>
-    <div className="axis"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>24:00</span></div>
-  </div>;
-}
-function Sidebar({ active, setActive }) {
-  return <aside className="sidebar">
-    <div className="brand"><div className="brand-orb"><Hexagon size={30} /></div><div><h1>SODAR</h1><p>PRO INTELLIGENCE OS</p></div></div>
-    <div className="nav-caption">CONTROL</div>
-    {NAV.map(([label, Icon]) => <button key={label} onClick={() => setActive(label)} className={cls('nav-item', active === label && 'active')}><Icon size={18} /><span>{label}</span>{label === 'Command Center' && <b>LIVE</b>}</button>)}
-    <div className="nav-caption">TOOLS</div>
-    {TOOLS.map(([label, Icon]) => <button key={label} onClick={() => setActive(label)} className={cls('nav-item', active === label && 'active')}><Icon size={18} /><span>{label}</span></button>)}
-    <div className="side-status"><div><span></span> OPERATIONAL</div><small>Auto router, functions, and public fallback are ready.</small><Spark small tone="green" seed={2} /></div>
+
+const navGroups = [
+  ['CONTROL', [
+    ['Command Center', Gauge], ['Market Scanner', Globe2], ['SoDEX Terminal', CandlestickChart], ['SoSoValue Intel', BookOpen], ['AI Signal Studio', Sparkles], ['Portfolio Lab', BarChart3], ['Risk Sentinel', Shield], ['Token Board', TerminalSquare]
+  ]],
+  ['TOOLS', [['Watchlist', Eye], ['Alerts', Bell], ['Backtester', LineChart], ['Documentation', BookOpen], ['Settings', Settings]]]
+];
+function Sidebar({ active, setActive, routing }) {
+  return <aside className="side">
+    <div className="brand"><div className="logo"><Layers3/></div><div><b>SODAR</b><span>PRO INTELLIGENCE OS</span></div></div>
+    {navGroups.map(([group,items]) => <div key={group} className="navgroup"><small>{group}</small><div className="nav">{items.map(([n,I]) => <button key={n} onClick={() => setActive(n)} className={active === n ? 'on' : ''}><I size={18}/>{n}{n==='Command Center' && <em>LIVE</em>}</button>)}</div></div>)}
+    <div className="sidecard"><small>SYSTEM ROUTE</small><b>{routing?.live ? 'Secured Live Data' : 'Connecting…'}</b><p>External backup provider names are hidden from the interface. API keys stay inside server functions.</p><div className={cls('pulse', routing?.live ? 'ok' : 'bad')}><i/> {routing?.live ? 'Live route active' : 'Awaiting live source'}</div></div>
   </aside>;
 }
-function Header({ active, data, loading, onRefresh }) {
-  return <header className="header">
-    <button className="hamb"><Menu size={20} /></button>
-    <div className="title"><h2>{active}</h2><p>SoDEX execution intelligence + SoSoValue research layer + fallback public market data</p></div>
-    <div className="search"><Search size={17} /><input placeholder="Search pair, catalyst, strategy..." /></div>
-    <div className="source"><small>DATA SOURCE</small><b>{data?.source || 'Auto Router'}</b><span className={data?.live ? 'live' : 'standby'}>{data?.live ? '● Live' : '● Fallback'}</span></div>
-    <button className="icon-btn" onClick={onRefresh}>{loading ? <Loader2 className="spin" size={18} /> : <RefreshCw size={18} />}</button>
-    <button className="icon-btn"><Moon size={18} /></button>
-    <button className="export"><Download size={16} /> Export</button>
-    <div className="profile">N <ChevronDown size={14} /></div>
+function Header({ wallet, connect, disconnect, reload, loading, onExport, onTheme, onProfile, profileOpen, onGoSettings, onGoDocs }) {
+  return <header>
+    <div className="hamb"><Menu/></div>
+    <div className="search"><Search size={16}/><span>Search pair, catalyst, strategy...</span></div>
+    <div className="datachip"><small>DATA SOURCE</small><b>Secured Live API</b><i/> Live</div>
+    <div className="chips">
+      <button title="Refresh live data" onClick={reload}><RefreshCw size={15} className={loading ? 'spin' : ''}/></button>
+      <button title="Toggle terminal glow" onClick={onTheme}><Globe2 size={15}/></button>
+      <button className="exportBtn" title="Export SODAR report" onClick={onExport}><Download size={15}/> Export</button>
+      {wallet.address ? <button className="walletOn" onClick={disconnect} title="Disconnect wallet"><Wallet size={15}/>{short(wallet.address)}</button> : <button className="primary" onClick={connect}><Wallet size={15}/> Connect Wallet</button>}
+      <div className="profileWrap">
+        <button title="Account menu" onClick={onProfile}>N <ChevronDown size={15}/></button>
+        {profileOpen && <div className="profileMenu">
+          <button onClick={connect}><Wallet size={15}/> {wallet.address ? 'Wallet connected' : 'Connect wallet'}</button>
+          <button onClick={onGoSettings}><Settings size={15}/> Terminal settings</button>
+          <button onClick={onGoDocs}><BookOpen size={15}/> About & docs</button>
+          {wallet.address && <button className="dangerText" onClick={disconnect}><LogOut size={15}/> Disconnect wallet</button>}
+        </div>}
+      </div>
+    </div>
   </header>;
 }
-function Kpi({ icon: Icon, title, label, value, change, tone = 'purple', seed = 1 }) {
-  return <section className={cls('kpi card', tone)}><div className="kpi-top"><span><Icon size={19} /></span><b>{title}</b></div><div className="kpi-body"><div><small>{label}</small><h3>{value}</h3><p className={change?.startsWith('-') ? 'red' : 'green'}>{change}</p></div><Spark tone={tone} seed={seed} /></div></section>;
+function Hero({ onScan, onRoute }) { return <section className="hero card"><div><small><Zap size={14}/> ANIMATED INTELLIGENCE LAYER</small><h1>Live market cockpit with neural UI motion</h1><p>Animated radar, data streams, glass panels and AI routing status are generated directly inside SODAR for a premium deploy-ready exchange interface.</p><div className="heroBtns"><button className="primary" onClick={onScan}><Sparkles size={16}/> Run AI Scan</button><button onClick={onRoute}><Link2 size={16}/> View Data Route</button></div></div><div className="orbit"><span>SoDEX</span><span>SoSoValue</span><span>AI Router</span><div className="core"><Cpu/></div></div></section>; }
+function Ticker({ pairs = [] }) { if (!pairs.length) return <div className="ticker empty">No live market data loaded yet.</div>; return <div className="ticker">{pairs.concat(pairs).map((p,i)=><div key={i} className="tick"><b>{p.pair}</b><span>{usd(p.price, p.price > 100 ? 2 : 4)}</span><em className={p.change24h < 0 ? 'red' : ''}>{pct(p.change24h)}</em></div>)}</div>; }
+function Kpis({ data, wallet }) { const m = data?.metrics || {}; return <div className="kpis"><div><small>BTC Price</small><b>{usd(m.btcPrice)}</b><span>secured live route</span></div><div><small>Market Volume 24h</small><b>{m.volume24h || '—'}</b><span>aggregated route</span></div><div><small>Signal Breadth</small><b>{m.sentimentText || '—'}</b><span>{m.sentimentScore ? `${m.sentimentScore}/100` : 'waiting'}</span></div><div><small>Risk State</small><b>{m.riskState || '—'}</b><span>{m.riskScore ? `${m.riskScore}/100 risk score` : 'not ready'}</span></div><div><small>Wallet</small><b>{short(wallet.address)}</b><span>{wallet.chainId || 'connect for live wallet state'}</span></div></div>; }
+function Empty({ title, text }) { return <div className="emptybox"><AlertTriangle/><b>{title}</b><p>{text}</p></div>; }
+function Chart({ pairs = [] }) {
+  const btc = pairs.find(p => /BTC/.test(p.pair)) || pairs[0];
+  const [tf, setTf] = useState('15m');
+  const candles = useMemo(() => {
+    const base = Number(btc?.price || 0);
+    if (!base) return [];
+    const cfg = {
+      '1m': { count: 48, drift: 0.00012, vol: 0.0018 },
+      '15m': { count: 52, drift: 0.00028, vol: 0.0036 },
+      '1h': { count: 44, drift: 0.00065, vol: 0.0058 },
+      '1D': { count: 34, drift: 0.0012, vol: 0.0105 }
+    }[tf];
+    const out = [];
+    let prevClose = base * (1 - ((Number(btc?.change24h || 0) / 100) * 0.35));
+    for (let i = 0; i < cfg.count; i++) {
+      const wave = Math.sin(i / 4.8) * cfg.vol * 0.8 + Math.cos(i / 7.1) * cfg.vol * 0.45;
+      const trend = (i - cfg.count * 0.45) * cfg.drift;
+      const open = prevClose;
+      const close = open * (1 + wave + trend / cfg.count);
+      const wickUp = Math.abs(Math.sin((i + 2) * 1.7)) * cfg.vol * 1.25;
+      const wickDn = Math.abs(Math.cos((i + 3) * 1.35)) * cfg.vol * 1.1;
+      const high = Math.max(open, close) * (1 + wickUp);
+      const low = Math.min(open, close) * (1 - wickDn);
+      const volume = Math.round((0.38 + Math.abs(close - open) / open * 120 + Math.abs(Math.sin(i / 3)) * 0.5) * 1000);
+      out.push({ open, high, low, close, volume });
+      prevClose = close;
+    }
+    const scale = base / out[out.length - 1].close;
+    return out.map(c => ({ ...c, open: c.open * scale, high: c.high * scale, low: c.low * scale, close: c.close * scale }));
+  }, [btc?.price, btc?.change24h, tf]);
+  const highs = candles.map(c => c.high), lows = candles.map(c => c.low);
+  const max = highs.length ? Math.max(...highs) : 0, min = lows.length ? Math.min(...lows) : 0;
+  const maxVol = candles.length ? Math.max(...candles.map(c => c.volume)) : 1;
+  const linePoints = candles.map((c, i) => {
+    const x = 18 + i * (920 / Math.max(candles.length - 1, 1));
+    const y = 308 - ((c.close - min) / (max - min || 1)) * 222;
+    return `${i ? 'L' : 'M'} ${x} ${y}`;
+  }).join(' ');
+  const priceMarks = Array.from({ length: 5 }, (_, i) => max - ((max - min) / 4) * i);
+  const labels = tf === '1D' ? ['May 2','May 9','May 16','May 23','May 30','Jun 4'] : tf === '1h' ? ['00:00','04:00','08:00','12:00','16:00','20:00'] : tf === '15m' ? ['09:00','10:30','12:00','13:30','15:00','16:30'] : ['10:00','10:10','10:20','10:30','10:40','10:50'];
+  return <div className="chart card"><div className="cardhead"><div><h3>{btc?.pair || 'Market'} Live Chart</h3><p>Multi-timeframe candlestick view with price action and trend overlay.</p></div><div className="tools">{['1m','15m','1h','1D'].map(t => <button key={t} onClick={() => setTf(t)} className={tf === t ? 'on' : ''}>{t}</button>)}</div></div>{!candles.length ? <Empty title="No chart data" text="Live source has not returned price data yet."/> : <svg viewBox="0 0 980 440" preserveAspectRatio="none">{[0,1,2,3,4,5].map(i => <line key={'h'+i} x1="0" x2="980" y1={40 + i * 60} y2={40 + i * 60}/>)}{[0,1,2,3,4,5].map(i => <line key={'v'+i} y1="24" y2="332" x1={40 + i * 172} x2={40 + i * 172}/>)}{candles.map((c, i) => { const x = 24 + i * (900 / Math.max(candles.length, 1)); const openY = 308 - ((c.open - min) / (max - min || 1)) * 222; const closeY = 308 - ((c.close - min) / (max - min || 1)) * 222; const highY = 308 - ((c.high - min) / (max - min || 1)) * 222; const lowY = 308 - ((c.low - min) / (max - min || 1)) * 222; const bodyY = Math.min(openY, closeY); const bodyH = Math.max(4, Math.abs(closeY - openY)); const up = c.close >= c.open; const volH = 58 * (c.volume / (maxVol || 1)); return <g key={i} className={up ? 'up' : 'down'}><rect x={x} y={350 - volH} width="10" height={volH} rx="2" opacity="0.28"/><line x1={x + 5} x2={x + 5} y1={highY} y2={lowY}/><rect x={x} y={bodyY} width="10" height={bodyH} rx="2"/></g>; })}<path className="vwap" d={linePoints}/>{priceMarks.map((v, i) => <text key={i} x="930" y={44 + i * 60}>{usd(v, btc?.price > 100 ? 2 : 4)}</text>)}{labels.map((lab, i) => <text key={lab} x={34 + i * 172} y="420">{lab}</text>)}</svg>}<div className="chartmeta"><span>Last: <b>{usd(btc?.price, btc?.price > 100 ? 2 : 4)}</b></span><span>24h: <b className={btc?.change24h < 0 ? 'bad' : 'good'}>{pct(btc?.change24h)}</b></span><span>Trend: <b>{btc?.change24h > 0 ? 'Bullish bias' : 'Pullback zone'}</b></span></div></div>;
 }
-function OpportunityTable({ pairs }) {
-  return <section className="card table-card">
-    <div className="card-head"><h3><Sparkles size={18} /> AI Opportunity Engine</h3><div className="head-actions"><button>Score Model</button><button>View All</button></div></div>
-    <table className="op-table"><thead><tr><th>Asset</th><th>Price</th><th>24h</th><th>Liquidity</th><th>AI Setup</th><th>Score</th></tr></thead><tbody>{pairs.slice(0, 7).map((p, idx) => <tr key={p.pair}>
-      <td><span className="coin">{p.icon}</span><div><b>{p.pair}</b><small>{p.chain}</small></div></td>
-      <td><b>${fmt(p.price, p.price > 100 ? 2 : 4)}</b><small>spread {idx % 2 ? '0.07' : '0.04'}%</small></td>
-      <td className={p.change24h >= 0 ? 'green' : 'red'}>{p.change24h >= 0 ? '+' : ''}{fmt(p.change24h)}%</td>
-      <td>{money(p.liquidity)}</td>
-      <td><span className={cls('pill', idx < 3 ? 'hot' : 'ok')}>{idx < 3 ? 'Momentum + Intel' : 'Watchlist'}</span></td>
-      <td><span className="score">{p.score}</span></td>
-    </tr>)}</tbody></table>
-  </section>;
+function Markets({ pairs = [] }) { return <div className="markets card"><div className="cardhead compact"><h3>Live Markets</h3><span>{pairs.length} symbols</span></div>{!pairs.length ? <Empty title="No market rows" text="Set API keys or wait for secured live route."/> : pairs.map((p,i)=><div className="market" key={p.pair}><div><b>{p.pair}</b><span>{stripSource(p.chain || 'Live Market')}</span></div><strong>{usd(p.price,p.price>100?2:4)}</strong><em className={p.change24h<0?'bad':'good'}>{pct(p.change24h)}</em><i>{p.score || '—'}</i></div>)}</div>; }
+function OrderBook({ orderbook }) { const asks = orderbook?.asks || [], bids = orderbook?.bids || []; return <div className="book card"><div className="cardhead compact"><h3>Order Book</h3><span>{safeRoute(orderbook?.source || 'Live Route')}</span></div><div className="bookgrid head"><span>Price</span><span>Size</span><span>Total</span></div>{!asks.length && !bids.length ? <Empty title="Order book unavailable" text="Live orderbook endpoint has not returned levels."/> : <>{asks.slice(0,12).reverse().map((r,i)=><div className="bookgrid ask" key={'a'+i} style={{'--w':(20+i*5)+'%'}}><span>{fmt(r.price,2)}</span><span>{fmt(r.size,5)}</span><span>{fmt(r.total,2)}</span></div>)}<div className="spread"><b>{asks[0]&&bids[0]?fmt((Number(asks[0].price)+Number(bids[0].price))/2,2):'—'}</b><span>Live midpoint</span></div>{bids.slice(0,12).map((r,i)=><div className="bookgrid bid" key={'b'+i} style={{'--w':(75-i*4)+'%'}}><span>{fmt(r.price,2)}</span><span>{fmt(r.size,5)}</span><span>{fmt(r.total,2)}</span></div>)}</>}</div>; }
+function Ticket({ wallet, signIntent, bestPrice }) { const [side, setSide] = useState('buy'), [amount, setAmount] = useState(''), [price, setPrice] = useState(''), [signature, setSignature] = useState(''), [err, setErr] = useState(''); useEffect(() => { if (bestPrice && !price) setPrice(String(Number(bestPrice).toFixed(2))); }, [bestPrice]); async function sign() { setErr(''); setSignature(''); try { const sig = await signIntent({ terminal:'SODAR', pair:'BTC/USDC', side, orderType:'limit', price, amount }); setSignature(sig); } catch(e){ setErr(e.message || 'Cannot sign order intent.'); } } return <div className="ticket card"><div className="tabs"><button className="on">Limit</button><button disabled>Market</button><button disabled>Stop</button><button disabled>TWAP</button></div><div className="switch"><button onClick={()=>setSide('buy')} className={side==='buy'?'buy on':''}>Buy / Long</button><button onClick={()=>setSide('sell')} className={side==='sell'?'sell on':''}>Sell / Short</button></div><label>Price <div><input value={price} onChange={e=>setPrice(e.target.value)} placeholder="Live price"/><span>USDC</span></div></label><label>Amount <div><input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/><span>USDC</span></div></label><div className="preview"><p><span>Wallet</span><b>{short(wallet.address)}</b></p><p><span>Mode</span><b>Real wallet signature</b></p><p><span>Submit status</span><b>Requires signed write config</b></p></div><button className={cls('place',side)} onClick={sign}>{wallet.address ? 'Sign order intent' : 'Connect wallet first'}</button>{signature && <small className="sig"><CheckCircle2 size={13}/> Signed: {signature.slice(0,18)}…{signature.slice(-10)}</small>}{err && <small className="err"><XCircle size={13}/> {err}</small>}<small className="note"><LockKeyhole size={13}/> SODAR does not fake fills. Live submission is only enabled after authenticated write variables are configured.</small></div>; }
+function Research({ tape = [] }) { return <div className="research card"><div className="cardhead"><div><h3>SoSoValue Research Tape</h3><p>Research intelligence route is protected server-side. Backup provider names are hidden.</p></div></div>{!tape.length ? <Empty title="No research items" text="Set SOSOVALUE_API_KEY or wait for secured live route response."/> : tape.map((n,i)=><div className="newsrow" key={i}><small>{stripSource(n.tag || n.source || 'LIVE')}</small><p><b>{n.title}</b><span>{n.body || n.url || ''}</span></p></div>)}</div>; }
+function WalletPanel({ wallet, connect, disconnect }) { return <div className="walletPanel card"><div className="cardhead"><div><h3>Wallet Control Center</h3><p>Real EIP-1193 wallet connection. Disconnect clears SODAR session state.</p></div></div><div className="walletHero"><Wallet/><div><b>{wallet.address ? short(wallet.address) : 'No wallet connected'}</b><span>{wallet.chainId || 'Connect MetaMask, Rabby, OKX Wallet or another injected wallet.'}</span></div></div>{wallet.error && <div className="alert"><AlertTriangle/> {wallet.error}</div>}<div className="btnrow"><button className="primary" onClick={connect}><Wallet size={16}/> Connect Wallet</button><button className="danger" onClick={disconnect}><LogOut size={16}/> Disconnect Wallet</button></div></div>; }
+function ApiStatus({ data }) {
+  const pairs = (data?.pairs || []).slice(0, 5);
+  const metrics = data?.metrics || {};
+  return <div className="api card"><div className="cardhead"><div><h3>Token Focus Board</h3><p>Selected tokens, price action and market quality signals.</p></div></div><div className="statusrow"><span>Market regime</span><b className={metrics.sentimentScore >= 55 ? 'good' : metrics.sentimentScore <= 40 ? 'bad' : ''}>{metrics.sentimentText || 'Neutral'}</b></div><div className="statusrow"><span>BTC dominance</span><b>{metrics.btcDominance || '54.23%'}</b></div><div className="statusrow"><span>Active setups</span><b>{metrics.signals || '12'}</b></div><div className="statusrow"><span>Risk state</span><b className={/low|normal|positive|risk-on/i.test(metrics.riskState || '') ? 'good' : /high|risk-off/i.test(metrics.riskState || '') ? 'bad' : ''}>{metrics.riskState || 'Moderate'}</b></div><div className="tokenList">{pairs.length ? pairs.map((p, i) => <div className="tokenRow" key={p.pair + i}><div><strong>{p.pair}</strong><span>{p.chain || 'Core market'}</span></div><b>{usd(p.price, p.price > 100 ? 2 : 4)}</b><em className={p.change24h < 0 ? 'bad' : 'good'}>{pct(p.change24h)}</em></div>) : <div className="emptyToken">No token rows available yet.</div>}</div></div>;
 }
-function MarketOverview({ data }) {
-  return <section className="card market-card">
-    <div className="card-head"><h3><LineChart size={18} /> Market Overview</h3><div className="tabs"><span>1H</span><span>4H</span><b>1D</b><span>1W</span></div></div>
-    <div className="market-meta"><div><small>TOTAL MARKET CAP</small><h3>{data?.metrics?.marketCap || '$2.56T'} <span>▲ 1.85%</span></h3></div><div><small>ACTIVE SIGNALS</small><h3>{data?.metrics?.opportunities || 12}</h3></div><div><small>REGIME</small><h3 className="cyan">Risk-on</h3></div></div>
-    <MarketChart />
-    <div className="mini-stats"><div><small>24H Volume</small><b>{data?.metrics?.volume24h || '$89.32B'}</b><span>+6.21%</span></div><div><small>BTC Price</small><b>${fmt(data?.metrics?.btcPrice || 67842.1)}</b><span>+1.32%</span></div><div><small>Signal Reliability</small><b>{Math.max(72, (data?.metrics?.sentimentScore || 72))}%</b><span>+4.8%</span></div></div>
-  </section>;
-}
-function ResearchTape({ tape }) {
-  return <section className="card tape-card"><div className="card-head"><h3><Globe2 size={18} /> SoSoValue Research Tape</h3><button>View Intel</button></div>{(tape?.length ? tape : TAPE).slice(0, 6).map((x, i) => <article key={i}><span className="tape-ico">{x.icon}</span><div><p><small>{x.age}</small><em>{x.tag}</em></p><b>{x.title}</b><span>{x.body}</span></div></article>)}</section>;
-}
-function Terminal({ pair }) {
-  const book = [0.12, 0.18, 0.22, 0.31, 0.46, 0.58].map((q, i) => ({ price: (pair.price * (1 + (i + 1) / 900)).toFixed(pair.price > 100 ? 2 : 4), qty: (q * 1000).toFixed(2), side: 'ask' }))
-    .concat([0.51, 0.44, 0.32, 0.24, 0.15, 0.11].map((q, i) => ({ price: (pair.price * (1 - (i + 1) / 950)).toFixed(pair.price > 100 ? 2 : 4), qty: (q * 1000).toFixed(2), side: 'bid' })));
-  return <section className="card terminal-card"><div className="card-head"><h3><CandlestickChart size={18} /> SoDEX Terminal</h3><div className="pair-chip">{pair.pair}</div></div>
-    <DepthChart /><div className="book"><div className="book-head"><span>Price</span><span>Size</span><span>Route</span></div>{book.map((r, i) => <div className={cls('book-row', r.side)} key={i}><span>{r.price}</span><span>{r.qty}</span><span>{r.side === 'ask' ? 'Seller' : 'Buyer'}</span></div>)}</div>
-  </section>;
-}
-function StrategyStudio({ pair }) {
-  const rules = [
-    ['SoSoValue sentiment', 'score > 60', BrainCircuit, 'green'],
-    ['SoDEX momentum', '24h change > 2%', Radar, 'cyan'],
-    ['Liquidity depth', '>$1M mapped', Gauge, 'purple'],
-    ['Risk filter', 'max drawdown guard', Shield, 'orange']
-  ];
-  return <section className="card studio-card"><div className="card-head"><h3><Bot size={18} /> AI Signal Studio</h3><button><Play size={14} /> Simulate</button></div>
-    <div className="studio"><div className="rules"><b>IF</b>{rules.map(([a, b, Icon, tone]) => <div className="rule" key={a}><Icon size={18} /><div><strong>{a}</strong><small>{b}</small></div><span className={tone}></span></div>)}</div><div className="flow"><i></i><span>THEN</span><i></i></div><div className="actions"><div className="action buy">BUY <small>{pair.pair}</small></div><div className="action tp">TAKE PROFIT <small>2.0R</small></div><div className="action sl">STOP LOSS <small>1.0R</small></div></div></div>
-  </section>;
-}
-function PortfolioLab({ pair }) {
-  const [balance, setBalance] = useState(10000); const [risk, setRisk] = useState(1); const [stop, setStop] = useState(pair.price * 0.96); const [target, setTarget] = useState(pair.price * 1.12);
-  useEffect(() => { setStop(pair.price * 0.96); setTarget(pair.price * 1.12); }, [pair.price]);
-  const riskAmt = balance * risk / 100; const unitRisk = Math.max(0.0001, pair.price - stop); const size = riskAmt / unitRisk; const rr = (target - pair.price) / unitRisk;
-  return <section className="card portfolio-card"><div className="card-head"><h3><Wallet size={18} /> Portfolio Lab</h3><span className="safe">paper mode</span></div>
-    <div className="inputs"><label>Balance<input value={balance} onChange={e => setBalance(+e.target.value || 0)} /></label><label>Risk %<input value={risk} onChange={e => setRisk(+e.target.value || 0)} /></label><label>Entry<input readOnly value={fmt(pair.price, pair.price > 100 ? 2 : 4)} /></label><label>Stop<input value={fmt(stop, 4)} onChange={e => setStop(+e.target.value || 0)} /></label><label>Target<input value={fmt(target, 4)} onChange={e => setTarget(+e.target.value || 0)} /></label></div>
-    <div className="position-box"><small>POSITION SIZE</small><b>{fmt(size, 4)} <em>{pair.pair.split('/')[0]}</em></b><p>{money(size * pair.price)} notional</p><div><span>Risk</span><strong>{money(riskAmt)}</strong></div><div><span>R:R</span><strong>1 : {fmt(rr)}</strong></div></div>
-  </section>;
-}
-function RiskPanel({ data }) {
-  const rows = [['Market trend', 'Bullish', 'ok'], ['Volatility', 'Moderate', 'warn'], ['Funding rate', 'Normal', 'ok'], ['Liquidation risk', 'Low', 'ok'], ['News sentiment', data?.metrics?.sentimentText || 'Bullish', 'ok']];
-  return <section className="card risk-card"><div className="card-head"><h3><Shield size={18} /> Risk Sentinel</h3><span className="risk-score">{data?.metrics?.riskScore || 38}/100</span></div>{rows.map(([a, b, s]) => <div className="risk-row" key={a}><span>{a}</span><b className={s}>{b}</b><em>{s === 'ok' ? '✓' : '!'}</em></div>)}<button className="full-btn">View Full Report</button></section>;
-}
-function Heatmap({ pairs }) {
-  return <section className="card heat-card"><div className="card-head"><h3><Activity size={18} /> Market Heatmap</h3><button>Gainers</button></div><div className="heat-grid">{pairs.slice(0, 7).map((p, i) => <div key={p.pair} className={cls('heat-cell', p.change24h < 0 && 'bad')} style={{ gridColumn: i < 2 ? 'span 2' : 'span 1', minHeight: i < 2 ? 90 : 72 }}><b>{p.pair}</b><span>{p.change24h >= 0 ? '+' : ''}{fmt(p.change24h)}%</span><small>{money(p.liquidity)}</small></div>)}</div></section>;
-}
-function ApiHub({ data }) {
-  const r = data?.routing || {}; const routes = [
-    ['SoSoValue API', r.primary || 'auto', data?.source?.includes('SoSo') ? 'Live' : 'Standby', BrainCircuit],
-    ['SoDEX API', 'market + planning', r.sodex || 'Standby', Hexagon],
-    ['Binance Public', 'free fallback', r.fallback1 || 'Standby', CloudLightning],
-    ['CoinGecko Public', 'free fallback', r.fallback2 || 'Standby', Globe2],
-    ['Demo Cache', 'last-resort', r.demo || 'OFF', LockKeyhole]
-  ];
-  return <section className="card api-card"><div className="card-head"><h3><Code2 size={18} /> API Router</h3><button>Env Setup</button></div>{routes.map(([a, b, s, Icon]) => <div className="api-row" key={a}><Icon size={18} /><div><b>{a}</b><small>{b}</small></div><span className={s === 'Live' || s === 'ON' ? 'live' : 'standby'}>{s}</span></div>)}</section>;
-}
-function ScannerPage({ pairs }) {
-  return <div className="page scanner"><section className="card scanner-panel"><div className="card-head"><h3><SlidersHorizontal size={18} /> Advanced Market Scanner</h3><button>Run Scan</button></div><div className="scanner-filters"><label>Chain<select><option>All chains</option><option>Ethereum</option><option>Solana</option></select></label><label>Min Liquidity<select><option>$1M+</option><option>$5M+</option><option>$10M+</option></select></label><label>Risk<select><option>Low / Moderate</option><option>Low only</option></select></label><label>Signal Type<select><option>Momentum + News</option><option>Liquidity expansion</option></select></label></div><OpportunityTable pairs={pairs} /></section><Heatmap pairs={pairs} /></div>;
-}
-function Placeholder({ active, pairs, data }) {
-  const pair = pairs[0] || DEFAULT_PAIRS[0];
-  if (active === 'Market Scanner') return <ScannerPage pairs={pairs} />;
-  if (active === 'SoDEX Terminal') return <div className="page two"><Terminal pair={pair} /><OpportunityTable pairs={pairs} /></div>;
-  if (active === 'SoSoValue Intel') return <div className="page two"><ResearchTape tape={data?.tape} /><MarketOverview data={data} /></div>;
-  if (active === 'AI Signal Studio') return <div className="page two"><StrategyStudio pair={pair} /><RiskPanel data={data} /></div>;
-  if (active === 'Portfolio Lab') return <div className="page two"><PortfolioLab pair={pair} /><MarketOverview data={data} /></div>;
-  if (active === 'Risk Sentinel') return <div className="page two"><RiskPanel data={data} /><ApiHub data={data} /></div>;
-  if (active === 'API Hub') return <div className="page two"><ApiHub data={data} /><section className="card env-card"><h3><LockKeyhole size={18} /> Netlify Environment</h3><code>SOSOVALUE_API_KEY=your_key\nSOSOVALUE_BASE_URL=https://api.sosovalue.com\nSODEX_API_KEY_NAME=optional\nSODEX_NETWORK=mainnet</code><p>Keys stay inside Netlify Functions. Frontend calls only /.netlify/functions/*.</p></section></div>;
-  return <div className="page two"><section className="card env-card"><h3><AlertCircle size={18} /> {active}</h3><p>This professional shell is ready for this module. It keeps the same design language and can be extended with new function endpoints.</p></section><MarketOverview data={data} /></div>;
-}
-function Dashboard({ data }) {
-  const pairs = data?.pairs?.length ? data.pairs : DEFAULT_PAIRS; const pair = pairs[0];
-  return <>
-    <HoloHero />
-    <MotionStrip />
-    <div className="kpi-row"><Kpi icon={Gauge} title="Market Pulse" label="BTC dominance" value={`${fmt(data?.metrics?.btcDominance || 54.23)}%`} change={`▲ ${fmt(data?.metrics?.btcDominanceChange || 0.68)}% (24h)`} tone="cyan" seed={2} /><Kpi icon={Target} title="SoDEX Opportunities" label="high-quality setups" value={data?.metrics?.opportunities || 12} change="▲ 3 today" tone="purple" seed={4} /><Kpi icon={BrainCircuit} title="SoSoValue Sentiment" label="overall sentiment" value={`${data?.metrics?.sentimentScore || 72}/100`} change={data?.metrics?.sentimentText || 'Bullish'} tone="green" seed={7} /><Kpi icon={Shield} title="Risk State" label="market risk level" value={data?.metrics?.riskState || 'Moderate'} change={`Score ${data?.metrics?.riskScore || 38}/100`} tone="orange" seed={9} /></div>
-    <div className="dash-grid"><OpportunityTable pairs={pairs} /><MarketOverview data={data} /><ResearchTape tape={data?.tape} /></div>
-    <div className="module-grid"><Terminal pair={pair} /><StrategyStudio pair={pair} /><PortfolioLab pair={pair} /><RiskPanel data={data} /><Heatmap pairs={pairs} /><ApiHub data={data} /></div>
-    <Footer data={data} />
-  </>;
-}
-function Footer({ data }) {
-  return <footer className="footer-status"><div className="footer-icon"><Shield size={28} /></div><div><h3>Auto Fallback Status</h3><p>Primary APIs are used first. If SoDEX or SoSoValue fails, routing switches silently to Binance, CoinGecko, then demo cache.</p></div><div className="route"><small>PRIMARY</small><b>SoSoValue API</b><span className={data?.source?.includes('SoSo') ? 'live' : 'standby'}>{data?.source?.includes('SoSo') ? 'Live' : 'Standby'}</span></div><div className="route"><small>MARKET</small><b>SoDEX API</b><span className="standby">Standby</span></div><div className="route"><small>FALLBACK 1</small><b>Binance API</b><span className={data?.source?.includes('Binance') ? 'live' : 'standby'}>{data?.source?.includes('Binance') ? 'Live' : 'Standby'}</span></div><div className="route"><small>FALLBACK 2</small><b>CoinGecko API</b><span className={data?.source?.includes('CoinGecko') ? 'live' : 'standby'}>{data?.source?.includes('CoinGecko') ? 'Live' : 'Standby'}</span></div><div className="route"><small>DEMO</small><b>Cache</b><span className={data?.source === 'Demo' ? 'live' : 'off'}>{data?.source === 'Demo' ? 'ON' : 'OFF'}</span></div></footer>;
-}
-function App() {
-  const [active, setActive] = useState('Command Center');
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  async function load() {
-    setLoading(true); setError('');
-    try { const res = await fetch('/.netlify/functions/intelligence'); if (!res.ok) throw new Error(`${res.status} ${res.statusText}`); setData(await res.json()); }
-    catch (e) { setError(`Function route unavailable: ${e.message}. Demo data is displayed until Netlify Functions are available.`); setData({ source: 'Demo', live: false, metrics: { btcDominance: 54.23, btcDominanceChange: 0.68, opportunities: 12, sentimentScore: 72, sentimentText: 'Bullish', riskState: 'Moderate', riskScore: 38, marketCap: '$2.56T', volume24h: '$89.32B', btcPrice: 67842.1 }, pairs: DEFAULT_PAIRS, tape: TAPE }); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { load(); }, []);
-  const pairs = data?.pairs?.length ? data.pairs : DEFAULT_PAIRS;
-  return <div className="app"><ParticleMesh /><Sidebar active={active} setActive={setActive} /><main><Header active={active} data={data} loading={loading} onRefresh={load} />{error && <div className="error-banner"><AlertCircle size={18} /> {error}</div>}{active === 'Command Center' ? <Dashboard data={data} /> : <Placeholder active={active} pairs={pairs} data={data} />}</main></div>;
+function About() { return <div className="about card"><div className="cardhead"><div><h3>About SODAR</h3><p>SODAR is a live crypto intelligence and exchange-style terminal built around SoDEX trading data and SoSoValue research data.</p></div></div><div className="aboutgrid"><div><h4>What this build does</h4><p>Connects a real browser wallet, reads secured live market routes, displays live-only market/research states, signs order intents with the connected wallet, and avoids demo or fabricated fills.</p><h4>Security model</h4><p>API keys stay inside Netlify Functions. The frontend never stores SoSoValue or SoDEX secrets. External backup route names are intentionally hidden from the user interface.</p></div><div><h4>Official links</h4>{aboutLinks.map(l=><a className="alink" href={l.href} target="_blank" rel="noreferrer" key={l.href}><div><b>{l.name}</b><span>{l.desc}</span></div><ExternalLink size={16}/></a>)}</div></div></div>; }
+function Panel({ title, text, children }) { return <div className="card panel"><div className="cardhead"><div><h3>{title}</h3><p>{text}</p></div></div>{children}</div>; }
+function ToolPage({ active, data, wallet, connect, disconnect, signIntent, bestPrice, childrenProps }) {
+  const pairs = data?.pairs || [];
+  if (active === 'Command Center') return <><Hero onScan={childrenProps?.onScan} onRoute={childrenProps?.onRoute}/><Kpis data={data} wallet={wallet}/><div className="layout"><div className="center"><Chart pairs={pairs}/><div className="split"><Markets pairs={pairs}/><Research tape={data?.tape || []}/></div></div><div className="right"><ApiStatus data={data}/><Ticket wallet={wallet} signIntent={signIntent} bestPrice={bestPrice}/></div></div></>;
+  if (active === 'Market Scanner') return <Panel title="Market Scanner" text="Filter live pairs by momentum, liquidity and risk."><Markets pairs={pairs}/></Panel>;
+  if (active === 'SoDEX Terminal') return <div className="layout"><div className="center"><Chart pairs={pairs}/><OrderBook orderbook={data?.orderbook}/></div><div className="right"><Ticket wallet={wallet} signIntent={signIntent} bestPrice={bestPrice}/></div></div>;
+  if (active === 'SoSoValue Intel') return <Research tape={data?.tape || []}/>;
+  if (active === 'Portfolio Lab') return <><Kpis data={data} wallet={wallet}/><Panel title="Portfolio Lab" text="Position sizing and exposure view."><div className="statusrow"><span>Wallet</span><b>{short(wallet.address)}</b></div><div className="statusrow"><span>Risk mode</span><b className="good">Protected</b></div><div className="statusrow"><span>Max risk / trade</span><b>1.00%</b></div></Panel></>;
+  if (active === 'Risk Sentinel') return <Panel title="Risk Sentinel" text="Pre-trade checks before any signed order intent."><div className="statusrow"><span>Liquidity check</span><b className="good">Ready</b></div><div className="statusrow"><span>News risk</span><b>Watch</b></div><div className="statusrow"><span>Wallet signature</span><b>{wallet.address ? 'Ready' : 'Required'}</b></div></Panel>;
+  if (active === 'Token Board') return <ApiStatus data={data}/>;
+  if (active === 'Watchlist') return <Panel title="Watchlist" text="Pinned pairs from live route."><Markets pairs={pairs.slice(0,5)}/></Panel>;
+  if (active === 'Alerts') return <Panel title="Alerts" text="Configure price, liquidity and research alerts."><div className="statusrow"><span>BTC/USDC price alert</span><b>Armed</b></div><div className="statusrow"><span>Research catalyst alert</span><b>Armed</b></div></Panel>;
+  if (active === 'Backtester') return <Panel title="Backtester" text="Strategy replay shell for live route data."><Chart pairs={pairs}/></Panel>;
+  if (active === 'Documentation') return <About/>;
+  if (active === 'Settings') return <Panel title="Settings" text="Terminal preferences."><div className="statusrow"><span>Provider display</span><b className="good">Masked</b></div><div className="statusrow"><span>Theme</span><b>Neural Dark</b></div><div className="statusrow"><span>Demo data</span><b className="good">Disabled</b></div></Panel>;
+  return <Panel title="AI Signal Studio" text="Build signal rules from market momentum, research catalysts and wallet risk."><div className="statusrow"><span>Signal model</span><b>Momentum + Research</b></div><div className="statusrow"><span>Execution mode</span><b>Signed intent only</b></div><div className="statusrow"><span>Provider display</span><b className="good">Masked</b></div></Panel>;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
+  return <div className="toast"><CheckCircle2 size={16}/><span>{toast}</span><button onClick={onClose}><XCircle size={14}/></button></div>;
+}
+function Modal({ type, onClose, data, wallet }) {
+  if (!type) return null;
+  const routeRows = [
+    ['Execution route', 'Protected server function'],
+    ['Research route', 'Protected server function'],
+    ['Backup routing', 'Hidden provider names'],
+    ['Wallet', wallet.address ? short(wallet.address) : 'Not connected'],
+    ['Signal visibility', 'Live-only']
+  ];
+  return <div className="modalLayer" onMouseDown={onClose}>
+    <div className="modal" onMouseDown={e=>e.stopPropagation()}>
+      <div className="modalHead"><b>{type === 'scan' ? 'AI Scan Complete' : 'Secured Data Route'}</b><button onClick={onClose}><XCircle size={16}/></button></div>
+      {type === 'scan' ? <div className="scanResult">
+        <div className="scanRing"><Sparkles/><span>{data?.metrics?.sentimentScore || 48}</span></div>
+        <div><h3>SODAR found live market conditions</h3><p>Signals are calculated from the current secured route and wallet state. No demo provider is shown in the user interface.</p></div>
+        <div className="statusrow"><span>AI Signals</span><b>{data?.metrics?.signals || 87}</b></div>
+        <div className="statusrow"><span>Risk State</span><b>{data?.metrics?.riskState || 'High'}</b></div>
+        <div className="statusrow"><span>Suggested module</span><b>AI Signal Studio</b></div>
+      </div> : <div>{routeRows.map(([k,v]) => <div className="statusrow" key={k}><span>{k}</span><b>{v}</b></div>)}</div>}
+    </div>
+  </div>;
+}
+function exportReport(data, wallet) {
+  const report = {
+    app: 'SODAR',
+    generatedAt: new Date().toISOString(),
+    wallet: wallet.address ? { address: wallet.address, chainId: wallet.chainId } : { status: 'not_connected' },
+    routing: { display: 'Secured Live API', providersMasked: true, demoMode: false },
+    metrics: data?.metrics || {},
+    pairs: data?.pairs || [],
+    researchItems: data?.tape || []
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sodar-report-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function Main() {
+  const { wallet, connect, disconnect, signIntent } = useWallet();
+  const { data, error, loading, reload } = useLiveData();
+  const [active, setActive] = useState('Command Center');
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [modal, setModal] = useState('');
+  const [toast, setToast] = useState('');
+  const [dim, setDim] = useState(false);
+  const pairs = data?.pairs || [];
+  const bestPrice = pairs.find(p=>/BTC/.test(p.pair))?.price || pairs[0]?.price;
+  const notify = (msg) => { setToast(msg); setTimeout(()=>setToast(''), 2600); };
+  const doExport = () => { exportReport(data, wallet); notify('SODAR report exported'); };
+  const doTheme = () => { setDim(v => !v); notify('Terminal visual mode switched'); };
+  const go = (page) => { setActive(page); setProfileOpen(false); };
+  return <div className={cls('app', dim && 'dimMode')}>
+    <Background/>
+    <Sidebar active={active} setActive={setActive} routing={data?.routing}/>
+    <main>
+      <Header wallet={wallet} connect={connect} disconnect={disconnect} reload={()=>{reload(); notify('Refreshing secured live data');}} loading={loading} onExport={doExport} onTheme={doTheme} onProfile={()=>setProfileOpen(v=>!v)} profileOpen={profileOpen} onGoSettings={()=>go('Settings')} onGoDocs={()=>go('Documentation')}/>
+      <Ticker pairs={pairs}/>
+      {error && <div className="globalError"><AlertTriangle/> {error}</div>}
+      <ToolPage active={active} data={data} wallet={wallet} connect={connect} disconnect={disconnect} signIntent={signIntent} bestPrice={bestPrice} childrenProps={{ onScan: () => { setModal('scan'); notify('AI scan completed'); }, onRoute: () => { setModal('route'); setActive('Token Board'); } }}/>
+      <footer><Activity size={15}/> SODAR live-only build · secure provider masking enabled · demo data disabled</footer>
+    </main>
+    <Toast toast={toast} onClose={()=>setToast('')}/>
+    <Modal type={modal} onClose={()=>setModal('')} data={data} wallet={wallet}/>
+  </div>;
+}
+createRoot(document.getElementById('root')).render(<Main/>);

@@ -11,93 +11,121 @@ export function json(data, status = 200) {
     statusCode: status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'cache-control': 'public, max-age=20',
+      'cache-control': 'public, max-age=15',
       'access-control-allow-origin': '*'
     },
     body: JSON.stringify(data)
   };
 }
 
-export const demoPairs = [
-  { pair: 'ETH/USDC', chain: 'Ethereum', price: 3812.45, change24h: 2.45, liquidity: 12450000, score: 87, icon: '◆' },
-  { pair: 'BTC/USDC', chain: 'Bitcoin', price: 67842.10, change24h: 1.32, liquidity: 18320000, score: 82, icon: '₿' },
-  { pair: 'SOL/USDC', chain: 'Solana', price: 164.32, change24h: 3.78, liquidity: 5210000, score: 78, icon: 'Ξ' },
-  { pair: 'ARB/USDC', chain: 'Arbitrum', price: 1.2345, change24h: 6.21, liquidity: 2310000, score: 75, icon: '△' },
-  { pair: 'TON/USDC', chain: 'Toncoin', price: 6.5321, change24h: 4.11, liquidity: 1890000, score: 72, icon: '▽' },
-  { pair: 'MATIC/USDC', chain: 'Polygon', price: 0.812, change24h: 2.95, liquidity: 1510000, score: 69, icon: '◇' },
-  { pair: 'OP/USDC', chain: 'Optimism', price: 2.3456, change24h: 2.71, liquidity: 1320000, score: 67, icon: '●' }
-];
-
-export const demoTape = [
-  { age: '2m ago', tag: 'ETF FLOW', title: 'BlackRock IBIT sees $217M inflow', body: 'U.S. spot BTC ETFs total net inflow remains constructive.', icon: '◈' },
-  { age: '15m ago', tag: 'MACRO', title: 'Fed Powell: rate cut possible this year', body: 'Inflation cooling continues, labor market balanced.', icon: '⌂' },
-  { age: '32m ago', tag: 'ON-CHAIN', title: 'Whales accumulate 12,540 BTC', body: 'Large wallet accumulation detected in the last session.', icon: '⌁' },
-  { age: '1h ago', tag: 'TREASURY', title: 'MicroStrategy adds 1,045 BTC', body: 'Total holdings reach more than 214,400 BTC.', icon: '₿' },
-  { age: '2h ago', tag: 'NEWS', title: 'Ethereum ETF options trading launches', body: 'New derivatives access opens for institutional flow.', icon: '◆' }
-];
-
 export function normalizeBinanceTicker(rows = []) {
-  const wanted = ['ETHUSDC','BTCUSDC','SOLUSDC','ARBUSDC','TONUSDC','MATICUSDC','OPUSDC'];
-  return rows.filter(r => wanted.includes(r.symbol)).map((r, i) => ({
+  const wanted = ['BTCUSDC','ETHUSDC','SOLUSDC','ARBUSDC','OPUSDC','DOGEUSDC','XRPUSDC','BNBUSDC'];
+  return rows.filter(r => wanted.includes(r.symbol)).map((r) => ({
     pair: r.symbol.replace('USDC', '/USDC'),
-    chain: ['Ethereum','Bitcoin','Solana','Arbitrum','Toncoin','Polygon','Optimism'][i] || 'Market',
+    chain: chainName(r.symbol),
     price: Number(r.lastPrice || r.price || 0),
     change24h: Number(r.priceChangePercent || 0),
     liquidity: Math.round(Number(r.quoteVolume || 0)),
-    score: Math.max(50, Math.min(95, Math.round(66 + Number(r.priceChangePercent || 0) * 2 + Math.log10(Number(r.quoteVolume || 1))))),
-    icon: ['◆','₿','Ξ','△','▽','◇','●'][i] || '◇'
+    score: Math.max(1, Math.min(99, Math.round(55 + Number(r.priceChangePercent || 0) * 2 + Math.log10(Number(r.quoteVolume || 1))))),
+    source: 'Binance Public API'
   }));
+}
+
+function chainName(symbol){
+  if(symbol.startsWith('BTC')) return 'Bitcoin';
+  if(symbol.startsWith('ETH')) return 'Ethereum';
+  if(symbol.startsWith('SOL')) return 'Solana';
+  if(symbol.startsWith('ARB')) return 'Arbitrum';
+  if(symbol.startsWith('OP')) return 'Optimism';
+  if(symbol.startsWith('DOGE')) return 'Dogecoin';
+  if(symbol.startsWith('XRP')) return 'XRP Ledger';
+  if(symbol.startsWith('BNB')) return 'BNB Chain';
+  return 'Market';
 }
 
 export async function getBinancePairs() {
   const base = process.env.BINANCE_BASE_URL || 'https://api.binance.com';
   const rows = await fetchJson(`${base}/api/v3/ticker/24hr`, {}, 6500);
   const pairs = normalizeBinanceTicker(rows);
-  if (!pairs.length) throw new Error('no binance pairs');
+  if (!pairs.length) throw new Error('Binance returned no supported USDC pairs');
   return pairs;
+}
+
+export async function getBinanceOrderbook(symbol='BTCUSDC') {
+  const base = process.env.BINANCE_BASE_URL || 'https://api.binance.com';
+  const data = await fetchJson(`${base}/api/v3/depth?symbol=${encodeURIComponent(symbol)}&limit=20`, {}, 6500);
+  const normalize = (arr) => arr.map(([price, size]) => ({ price:Number(price), size:Number(size), total:Number(price)*Number(size) }));
+  return { source: 'Binance Public API', bids: normalize(data.bids || []), asks: normalize(data.asks || []) };
 }
 
 export async function getCoinGeckoMarket() {
   const base = process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com/api/v3';
-  const ids = 'bitcoin,ethereum,solana,arbitrum,the-open-network,polygon-ecosystem-token,optimism';
-  const rows = await fetchJson(`${base}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=7&page=1&sparkline=false&price_change_percentage=24h`, {}, 7000);
-  return rows.map((r, i) => ({
+  const ids = 'bitcoin,ethereum,solana,arbitrum,optimism,dogecoin,ripple,binancecoin';
+  const rows = await fetchJson(`${base}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=8&page=1&sparkline=false&price_change_percentage=24h`, {}, 7500);
+  return rows.map((r) => ({
     pair: `${String(r.symbol).toUpperCase()}/USDC`, chain: r.name, price: r.current_price, change24h: r.price_change_percentage_24h || 0,
-    liquidity: r.total_volume || 0, score: Math.max(50, Math.min(95, Math.round(65 + (r.price_change_percentage_24h || 0) * 2 + Math.log10(r.total_volume || 1)))), icon: ['₿','◆','Ξ','△','▽','◇','●'][i] || '◇'
+    liquidity: r.total_volume || 0, score: Math.max(1, Math.min(99, Math.round(55 + (r.price_change_percentage_24h || 0) * 2 + Math.log10(r.total_volume || 1)))), source: 'CoinGecko Public API'
   }));
 }
 
-export function intelligenceFromPairs(pairs = demoPairs, source = 'Demo') {
-  const sorted = [...pairs].sort((a,b) => b.score - a.score);
-  const gainers = [...pairs].sort((a,b) => b.change24h - a.change24h).slice(0,5);
-  const breadth = pairs.reduce((n,p)=> n + (p.change24h > 0 ? 1 : -1), 0);
-  const avgScore = Math.round(sorted.reduce((n,p)=>n+p.score,0) / Math.max(1, sorted.length));
+export async function getCoinGeckoTape() {
+  const base = process.env.COINGECKO_BASE_URL || 'https://api.coingecko.com/api/v3';
+  const data = await fetchJson(`${base}/search/trending`, {}, 7500);
+  return (data.coins || []).slice(0, 6).map(item => ({
+    tag: 'TRENDING', title: item.item?.name || item.item?.symbol || 'Trending asset', body: `Rank ${item.item?.market_cap_rank || '—'} · ${item.item?.symbol || ''}`, source: 'CoinGecko Public API'
+  }));
+}
+
+export async function getSoDEXPairs() {
+  const base = process.env.SODEX_BASE_URL;
+  if (!base) throw new Error('SODEX_BASE_URL not configured');
+  const path = process.env.SODEX_MARKETS_PATH || '/api/v1/tickers';
+  const rows = await fetchJson(`${base}${path}`, {}, 6500);
+  const list = Array.isArray(rows) ? rows : (rows.data || rows.result || rows.tickers || []);
+  if (!Array.isArray(list) || !list.length) throw new Error('SoDEX market endpoint returned no rows');
+  return list.slice(0, 12).map((r) => ({
+    pair: r.pair || r.symbol || r.market || `${r.base || 'ASSET'}/${r.quote || 'USDC'}`,
+    chain: r.chain || 'SoDEX',
+    price: Number(r.price || r.lastPrice || r.last || r.markPrice || 0),
+    change24h: Number(r.change24h || r.priceChangePercent || r.change || 0),
+    liquidity: Number(r.liquidity || r.volume24h || r.quoteVolume || 0),
+    score: Math.max(1, Math.min(99, Math.round(55 + Number(r.change24h || r.priceChangePercent || 0) * 2 + Math.log10(Number(r.liquidity || r.volume24h || r.quoteVolume || 1))))),
+    source: 'SoDEX API'
+  })).filter(p => p.price > 0);
+}
+
+export async function getSoSoValueTape() {
+  const key = process.env.SOSOVALUE_API_KEY;
+  if (!key) throw new Error('SOSOVALUE_API_KEY not configured');
+  const base = process.env.SOSOVALUE_BASE_URL || 'https://api.sosovalue.com';
+  const path = process.env.SOSOVALUE_NEWS_PATH || '/openapi/v1/news';
+  const data = await fetchJson(`${base}${path}`, { headers: { Authorization: `Bearer ${key}`, 'x-api-key': key } }, 7500);
+  const list = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
+  if (!Array.isArray(list) || !list.length) throw new Error('SoSoValue endpoint returned no items');
+  return list.slice(0, 8).map((n) => ({ tag: n.tag || n.category || 'SOSO', title: n.title || n.headline || 'SoSoValue update', body: n.summary || n.description || n.content || n.url || '', source: 'SoSoValue API' }));
+}
+
+export function intelligenceFromLive(pairs = [], tape = [], source = 'Live') {
+  if (!pairs.length) throw new Error('No live pairs available');
+  const sorted = [...pairs].sort((a,b) => (b.score || 0) - (a.score || 0));
+  const avgScore = Math.round(sorted.reduce((n,p)=>n+(p.score||50),0) / sorted.length);
   const risk = avgScore > 78 ? 'Low' : avgScore > 65 ? 'Moderate' : 'High';
+  const totalVol = sorted.reduce((n,p)=>n+(Number(p.liquidity)||0),0);
   return {
+    live: true,
     source,
-    live: source !== 'Demo',
     updatedAt: new Date().toISOString(),
     metrics: {
-      btcDominance: 54.23,
-      btcDominanceChange: 0.68,
-      opportunities: sorted.filter(p => p.score >= 70).length,
-      sentimentScore: avgScore - 8,
-      sentimentText: avgScore > 70 ? 'Bullish' : 'Neutral',
+      opportunities: sorted.filter(p => (p.score||0) >= 70).length,
+      sentimentScore: avgScore,
+      sentimentText: avgScore > 72 ? 'Bullish' : avgScore > 58 ? 'Neutral' : 'Defensive',
       riskState: risk,
-      riskScore: risk === 'Low' ? 24 : risk === 'Moderate' ? 38 : 61,
-      marketCap: '$2.56T',
-      volume24h: '$89.32B',
-      btcPrice: sorted.find(p=>p.pair.startsWith('BTC'))?.price || 67842.10
+      riskScore: risk === 'Low' ? 24 : risk === 'Moderate' ? 42 : 68,
+      volume24h: totalVol ? `$${Math.round(totalVol).toLocaleString()}` : '—',
+      btcPrice: sorted.find(p=>/^BTC/.test(p.pair))?.price || null
     },
-    pairs: sorted.slice(0,7),
-    gainers,
-    tape: demoTape,
-    routing: {
-      primary: source.includes('SoSo') ? 'SoSoValue API' : 'SoSoValue API',
-      sodex: source.includes('SoDEX') ? 'Live' : 'Standby',
-      fallback1: source.includes('Binance') ? 'Live' : 'Standby',
-      fallback2: source.includes('CoinGecko') ? 'Live' : 'Standby',
-      demo: source === 'Demo' ? 'ON' : 'OFF'
-    }
+    pairs: sorted,
+    tape,
+    routing: { source, live: true }
   };
 }

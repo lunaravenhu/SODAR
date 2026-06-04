@@ -3,6 +3,10 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  SECRETS_SCAN_OMIT_KEYS = "SOSOVALUE_BASE_URL,BINANCE_BASE_URL,COINGECKO_BASE_URL,SODEX_NETWORK,SOSOVALUE_INTEL_PATH,SOSOVALUE_NEWS_PATH"
+
 [functions]
   node_bundler = "esbuild"
 
