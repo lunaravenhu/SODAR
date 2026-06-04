@@ -1,6 +1,4 @@
-# SODAR PRO UI
-
-Professional SoDEX × SoSoValue intelligence dashboard built for Netlify.
+# SODAR
 
 ## What is inside
 
